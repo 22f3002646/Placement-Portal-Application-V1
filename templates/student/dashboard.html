@@ -1,94 +1,217 @@
 {% extends "base.html" %}
+
 {% block title %}Student Dashboard{% endblock %}
 {% block content %}
-<h3 class="mb-3">Student Dashboard - {{ student.full_name }}</h3>
+{% with notifications = get_flashed_messages(category_filter=['notification']) %}
+  {% if notifications %}
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="bi bi-bell me-2"></i>
+    <strong>Updates:</strong>
+    <ul class="mb-0 mt-1">
+      {% for msg in notifications %}
+      <li>{{ msg }}</li>
+      {% endfor %}
+    </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endif %}
+{% endwith %}
+
+<h3 class="mb-4">Dashboard - {{ student.full_name if student else 'Complete your profile' }}</h3>
 
 <div class="row mb-4">
-  <div class="col-md-4">
-    <div class="card">
-      <div class="card-body">
-        <h5>Profile</h5>
-        <p class="mb-1"><strong>Branch:</strong> {{ student.branch }}</p>
-        <p class="mb-1"><strong>Year:</strong> {{ student.year }}</p>
-        <p class="mb-0"><strong>CGPA:</strong> {{ "%.2f"|format(student.cgpa or 0) }}</p>
+  <div class="col-md-6 mb-3">
+    <div class="card {{ 'border-success' if get_profile_status(current_user) == 'complete' 
+                    else 'border-warning' if get_profile_status(current_user) == 'partial' 
+                    else 'border-danger' }}">
+      <div class="card-body t p-4">
+        <div class="mb-3">
+          <i class="bi bi-person-circle fs-1 text-muted mb-2"></i>
+          <h5 class="mb-1">{{ student.full_name if student else 'New Student' }}</h5>
+          <p class="small text-muted mb-2">
+            {{ student.branch or 'N/A' }} | Year {{ student.year or 'N/A' }}
+          </p>
+        </div>
+        
+        <div>
+
+      
+            {% if student and student.resume_path %}
+          <div class="mb-3">
+                <span class="badge fs-6 px-3 py-2 mb-3 {{ 
+            'bg-success' if get_profile_status(current_user) == 'complete' 
+            else 'bg-warning' if get_profile_status(current_user) == 'partial' 
+            else 'bg-danger' 
+          }}">
+          {{ get_profile_status(current_user)|title }} Profile
+        </span>
+            <span class="badge bg-success mb-1 d-block  px-3 py-2 fs-6">Resume Uploaded ✓</span>
+            <a href="{{ url_for('static', filename='uploads/resumes/' + student.resume_path) }}" 
+               class="btn btn-sm btn-outline-success" target="_blank">
+              📄 View Resume
+            </a>
+            <a href="{{ url_for('student_update_profile') }}" class="btn btn-primary btn-sm w-10 mb-1">
+          ✏️ Update Profile
+        </a>
+          </div>
+        {% else %}
+          <div class="mb-3">
+                <span class="badge fs-6 px-3 py-2 mb-3 {{ 
+            'bg-success' if get_profile_status(current_user) == 'complete' 
+            else 'bg-warning' if get_profile_status(current_user) == 'partial' 
+            else 'bg-danger' 
+          }}">
+          {{ get_profile_status(current_user)|title }} Profile
+        </span>
+            <span class="badge bg-warning mb-1  px-3 py-2 fs-6">Add Resume</span>
+             <a href="{{ url_for('student_update_profile') }}" class=" badge btn btn-primary  px-3 py-2 btn-sm w-10 mb-1 fs-6">
+         Update Profile
+        </a>
+          </div>
+         
+        {% endif %}
+      </div>
+        
+    
+        
+        
+        <small class="text-muted">Add skills & resume for better shortlisting</small>
       </div>
     </div>
   </div>
-  <div class="col-md-4">
-    <div class="card text-bg-info">
-      <div class="card-body">
-        <h4>{{ approved_drives|length }}</h4>
-        <p class="mb-0">Approved Drives</p>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card text-bg-secondary">
-      <div class="card-body">
-        <h4>{{ applications|length }}</h4>
-        <p class="mb-0">Applications</p>
+
+  
+  <div class="col-md-3">
+    <div class="card text-bg-secondary h-10">
+      <div class="card-body d-flex flex-column align-items-center justify-content-center ">
+        <h4 class="mb-1">Currently Applied : {{ applications|length }} </h4> <h5 class="mb-0 large"></h5> 
+        <a href="{{ url_for('student_applications') }}" class="btn btn-outline-light btn-sm mt-2">View All</a>
       </div>
     </div>
   </div>
 </div>
 
+<div class="row mb-4">
+  <div class="col-md-4 mb-3">
+    <a href="{{ url_for('student_drives') }}" class="btn btn-outline-primary w-100 h-100 d-flex align-items-center justify-content-center">
+      <i class="bi bi-briefcase fs-3 me-2"></i>
+      <div>Browse Jobs</div>
+    </a>
+  </div>
+  <div class="col-md-4 mb-3">
+    <a href="{{ url_for('student_applications') }}" class="btn btn-outline-success w-100 h-100 d-flex align-items-center justify-content-center">
+      <i class="bi bi-list-check fs-3 me-2"></i>
+      <div>My Applications</div>
+    </a>
+  </div>
+  <div class="col-md-4 mb-3">
+    <a href="{{ url_for('student_update_profile') }}" class="btn btn-outline-warning w-100 h-100 d-flex align-items-center justify-content-center">
+      <i class="bi bi-pencil-square fs-3 me-2"></i>
+      <div>Edit Profile</div>
+    </a>
+  </div>
+</div>
+
 <div class="row">
-  <div class="col-md-8 mb-3">
+  <div class="col-12">
+    <h5 class="mb-3">Recent Applications</h5>
+    {% if applications %}
+    <div class="card">
+      <div class="card-body">
+        {% for app in applications[:5] %}
+        <div class="border-bottom pb-3 mb-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ app.drive.company.name }}</div>
+              <small class="text-muted">{{ app.drive.title[:60] }}{% if app.drive.title|length > 60 %}...{% endif %}</small>
+            </div>
+            <span class="badge ms-2 flex-shrink-0 bg-{{ 
+              'success' if app.status == 'selected' 
+              else 'warning' if app.status == 'shortlisted' 
+              else 'secondary' if app.status == 'applied' 
+              else 'danger' 
+            }}">
+              {{ app.status|title }}
+            </span>
+          </div>
+          <div class="mt-2 small text-muted">
+            Applied: {{ app.applied_at.strftime('%d %b %Y') }}
+            {% if app.drive.deadline | is_deadline_passed  %}
+              | Deadline: {{ app.drive.deadline.strftime('%d %b') }}
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        {% if applications|length > 5 %}
+          <div class="text-center">
+            <a href="{{ url_for('student_applications') }}" class="btn btn-outline-primary btn-sm">
+              View All ({{ applications|length }})
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center py-4">
+        <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+        <h6 class="text-muted">No applications yet</h6>
+        <p class="text-muted mb-3">Apply to jobs to track your progress here</p>
+        <a href="{{ url_for('student_drives') }}" class="btn btn-primary">Find Jobs</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-12">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Approved Drives</span>
+        <h6 class="mb-0">Featured Jobs</h6>
         <a href="{{ url_for('student_drives') }}" class="btn btn-sm btn-outline-primary">View All</a>
       </div>
       <div class="card-body">
         {% if approved_drives %}
-          <div class="row">
-            {% for d in approved_drives[:6] %}
-              <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                  <div class="card-body">
-                    <h6 class="card-title">{{ d.company.name }}</h6>
-                    <p class="small mb-1">{{ d.title }}</p>
-                    <p class="small text-muted">{{ d.description[:80] }}...</p>
-                    <form method="post" action="{{ url_for('student_apply', drive_id=d.id) }}">
-                      <button class="btn btn-sm btn-success" type="submit">Apply</button>
-                    </form>
-                    <small class="d-block mt-1 text-muted">
-                      Deadline: {{ d.deadline.strftime("%Y-%m-%d %H:%M") }}
-                    </small>
-                  </div>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="mb-0 text-muted">No approved drives available.</p>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-4 mb-3">
-    <div class="card">
-      <div class="card-header">
-        Recent Applications
-      </div>
-      <div class="card-body">
-        {% if applications %}
-          {% for a in applications[:5] %}
-            <div class="border rounded p-2 mb-2">
-              <div class="small">{{ a.drive.company.name }} - {{ a.drive.title }}</div>
-              <div class="small text-muted">{{ a.applied_at.strftime("%Y-%m-%d") }}</div>
-              <span class="badge bg-{{ 'secondary' if a.status == 'applied'
-                                        else 'warning' if a.status == 'shortlisted'
-                                        else 'success' if a.status == 'selected'
-                                        else 'danger' }}">
-                {{ a.status|title }}
-              </span>
+        <div class="row">
+          {% for drive in approved_drives[:4] %}
+          <div class="col-md-3 mb-3">
+            <div class="card h-100">
+              <div class="card-body p-3">
+                <h6 class="card-title mb-1">{{ drive.company.name }}</h6>
+                <p class="small mb-2">{{ drive.title }}</p>
+                {% if drive.salary_range %}
+                  <span class="badge bg-success mb-2">{{ drive.salary_range }}</span>
+                {% endif %}
+                <small class="text-muted d-block mb-2">
+                  Deadline: {{ drive.deadline.strftime('%d %b') }}
+                </small>
+                <form method="post" action="{{ url_for('student_apply', drive_id=drive.id) }}">
+                   {% set applied_apps = applications|selectattr('drive_id', 'equalto', drive.id)|list %}
+          
+          {% if applied_apps %}
+            <div class="p-2 bg-success bg-opacity-10 border border-success rounded text-success text-center">
+              <i class="bi bi-check-circle-fill fs-5  d-block"></i>
+              <small class="fw-semibold">Applied</small>
             </div>
+          {% else %}
+            <form method="post" action="{{ url_for('student_apply', drive_id=drive.id) }}" class="mt-2">
+              <button type="submit" class="btn btn-success w-100">
+                <i class="bi bi-plus-circle me-1"></i>Apply Now
+              </button>
+            </form>
+          {% endif %}
+                </form>
+              </div>
+            </div>
+          </div>
           {% endfor %}
-          <a href="{{ url_for('student_applications') }}" class="btn btn-sm btn-outline-primary w-100">View All</a>
+        </div>
         {% else %}
-          <p class="mb-0 text-muted">No applications yet.</p>
+        <div class="text-center py-4">
+          <i class="bi bi-briefcase fs-2 text-muted mb-3"></i>
+          <p class="text-muted">No active job postings</p>
+        </div>
         {% endif %}
       </div>
     </div>

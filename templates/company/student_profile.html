@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ student.full_name }} - Profile{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between">
+        <h5>{{ student.full_name }}</h5>
+        <a href="{{ url_for('company_dashboard') }}" class="btn btn-secondary btn-sm">Back</a>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Username:</strong> {{ student.user.username if student.user else 'N/A' }}</p>
+            <p><strong>Email:</strong> {{ student.user.email if student.user else 'N/A' }}</p>
+            <p><strong>Contact:</strong> {{ student.contact or 'N/A' }}</p>
+            <p><strong>Branch:</strong> {{ student.branch or 'N/A' }}</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Year:</strong> {{ student.year or 'N/A' }}</p>
+            <p><strong>CGPA:</strong> {{ "%.2f"|format(student.cgpa or 0) }}</p>
+            {% if student.resume_path %}
+              <p><a href="{{ url_for('static', filename=student.resume_path) }}" class="btn btn-outline-primary" target="_blank">View Resume</a></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">Applied Drives</div>
+      <div class="card-body">
+        {% for app in applications %}
+          <div class="border-bottom pb-2 mb-2">
+            <strong>{{ app.drive.title }}</strong><br>
+            <small>{{ app.drive.status|title }} - {{ app.status|title }}</small>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Update Profile{% endblock %}
+{% block content %}
+<h3>Update Profile</h3>
+<div class="row">
+  <div class="col-md-8">
+    <form method="post" enctype="multipart/form-data">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Full Name</label>
+          <input name="full_name" value="{{ student.full_name }}" class="form-control" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Contact</label>
+          <input name="contact" value="{{ student.contact }}" class="form-control">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Branch</label>
+          <input name="branch" value="{{ student.branch }}" class="form-control">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Year</label>
+          <input name="year" type="number" value="{{ student.year }}" class="form-control">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">CGPA</label>
+          <input name="cgpa" type="number" step="0.01" value="{{ student.cgpa }}" class="form-control">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Skills (comma separated)</label>
+        <input name="skills" value="{{ student.skills }}" class="form-control" placeholder="Python, React, SQL">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Education Summary</label>
+        <textarea name="education" class="form-control" rows="3">{{ student.education }}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Update Resume (PDF/DOCX)</label>
+        <input name="resume" type="file" class="form-control" accept=".pdf,.doc,.docx">
+        {% if student.resume_path %}
+          <small class="text-muted">Current: <a href="{{ url_for('static', filename='uploads/resumes/' + student.resume_path) }}" target="_blank">{{ student.resume_path }}</a></small>
+        {% endif %}
+      </div>
+      <button class="btn btn-primary" type="submit">Update Profile</button>
+      <a href="{{ url_for('student_dashboard') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

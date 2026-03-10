@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}My Applications{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3>My Applications ({{ applications|length }})</h3>
+    {% if applications %}
+      <small class="text-muted">
+        Track your application status and update profile for better chances
+      </small>
+    {% endif %}
+  </div>
+  <div>
+    <a href="{{ url_for('student_update_profile') }}" class="btn btn-outline-primary me-2">
+      ✏️ Update Profile
+    </a>
+    <a href="{{ url_for('student_dashboard') }}" class="btn btn-outline-secondary">
+      ← Dashboard
+    </a>
+  </div>
+</div>
+
+{% if get_profile_status(current_user) != 'complete' %}
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+  <i class="bi bi-exclamation-triangle me-2"></i>
+  <strong>Tip:</strong> Complete your 
+  <a href="{{ url_for('student_update_profile') }}">profile</a> 
+  (skills + resume) to improve shortlisting chances!
+  <span class="badge bg-warning ms-2">{{ get_profile_status(current_user)|title }}</span>
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+  <div class="card-header bg-light">
+    <div class="row align-items-center">
+      <div class="col-md-6">
+        <h6 class="mb-0">
+          <i class="bi bi-list-ul me-2"></i>
+          Application History
+        </h6>
+      </div>
+      <div class="col-md-6 text-end">
+<div class="btn-group btn-group-sm" role="group">
+  <a href="{{ url_for('student_applications') }}?status=all" 
+     class="btn btn-outline-secondary {{ 'active' if status_filter == 'all' else '' }}">
+    All ({{ applications|length }})
+  </a>
+  <a href="{{ url_for('student_applications') }}?status=shortlisted" 
+     class="btn btn-outline-warning {{ 'active' if status_filter == 'shortlisted' else '' }}">
+    Shortlisted ({{ applications|selectattr('status', 'equalto', 'shortlisted')|list|length }})
+  </a>
+  <a href="{{ url_for('student_applications') }}?status=selected" 
+     class="btn btn-outline-success {{ 'active' if status_filter == 'selected' else '' }}">
+    Selected ({{ applications|selectattr('status', 'equalto', 'selected')|list|length }})
+  </a>
+  <a href="{{ url_for('student_applications') }}?status=rejected" 
+     class="btn btn-outline-danger {{ 'active' if status_filter == 'rejected' else '' }}">
+    Rejected ({{ applications|selectattr('status', 'equalto', 'rejected')|list|length }})
+  </a>
+</div>
+
+      </div>
+    </div>
+  </div>
+  
+  <div class="card-body">
+    {% if applications %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-light">
+        <tr>
+          <th>Company</th>
+          <th>Position</th>
+          <th>Applied</th>
+          <th>Status</th>
+          <th>Deadline</th>
+          <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for app in applications %}
+        <tr>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="bg-light rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                <i class="bi bi-building fs-5 text-muted"></i>
+              </div>
+              <div>
+                <div class="fw-semibold">{{ app.drive.company.name }}</div>
+                <small class="text-muted">
+                  {{ app.drive.company.industry or 'Technology' }}
+                </small>
+              </div>
+            </div>
+          </td>
+          
+          <td>
+            <div class="fw-semibold">{{ app.drive.title }}</div>
+            {% if app.drive.salary_range %}
+              <span class="badge bg-success fs-6">{{ app.drive.salary_range }}</span>
+            {% endif %}
+            <div class="small text-muted mt-1">
+              {% if app.drive.skills_required %}
+                Skills: {{ app.drive.skills_required.split(',')|first|trim }}
+                {% if app.drive.skills_required.split(',')|length > 1 %}...{% endif %}
+              {% endif %}
+            </div>
+          </td>
+          
+          <td>
+            <div class="fw-medium">{{ app.applied_at.strftime('%d %b %Y') }}</div>
+            <small class="text-muted">{{ app.applied_at.strftime('%H:%M') }}</small>
+          </td>
+          
+          <td>
+            <div class="d-flex align-items-center">
+              <span class="badge fs-6 px-3 py-2 rounded-pill me-2 bg-{{ 
+                'success' if app.status == 'selected' 
+                else 'warning' if app.status == 'shortlisted' 
+                else 'secondary' if app.status == 'applied' 
+                else 'danger' 
+              }}">
+                {{ app.status|title }}
+              </span>
+              {% if app.status == 'applied' %}
+                <small class="text-muted">Pending review</small>
+              {% elif app.status == 'shortlisted' %}
+                <span class="badge bg-light text-dark fs-6 px-2 py-1 rounded">Next Round</span>
+              {% elif app.status == 'selected' %}
+                <i class="bi bi-check-circle-fill text-success"></i>
+              {% endif %}
+            </div>
+          </td>
+          
+          <td>
+            {% if app.drive.deadline | is_deadline_passed %}
+              <span class="badge bg-info">
+                {{ app.drive.deadline.strftime('%d %b') }}
+              </span>
+            {% else %}
+              <span class="badge bg-secondary">Closed</span>
+            {% endif %}
+          </td>
+          
+          <td>
+            <div class="btn-group-vertical btn-group-sm" role="group">
+           
+              <a href="{{ url_for('student_update_profile') }}" 
+                 class="btn btn-outline-secondary btn-sm">
+                ✏️ Update Profile
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="row mt-4 pt-3 border-top">
+      <div class="col-md-3">
+        <div class="text-center">
+          <div class="h4 mb-1">{{ applications|selectattr('status', 'equalto', 'applied')|list|length }}</div>
+          <small class="text-muted">Pending</small>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center">
+          <div class="h4 mb-1 text-warning">{{ applications|selectattr('status', 'equalto', 'shortlisted')|list|length }}</div>
+          <small class="text-muted">Shortlisted</small>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center">
+          <div class="h4 mb-1 text-success">{{ applications|selectattr('status', 'equalto', 'selected')|list|length }}</div>
+          <small class="text-muted">Selected</small>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="text-center">
+          <div class="h4 mb-1 text-danger">{{ applications|selectattr('status', 'equalto', 'rejected')|list|length }}</div>
+          <small class="text-muted">Rejected</small>
+        </div>
+      </div>
+    </div>
+    
+    {% else %}
+    <div class="text-center py-5">
+      <i class="bi bi-inbox fs-1 text-muted mb-4"></i>
+      <h5 class="text-muted mb-3">No applications yet</h5>
+      <p class="text-muted mb-4">
+        Apply to jobs to track your progress here. 
+        Complete your <a href="{{ url_for('student_update_profile') }}">profile</a> first!
+      </p>
+      <div class="d-grid gap-2 d-md-block">
+        <a href="{{ url_for('student_drives') }}" class="btn btn-primary btn-lg mb-2">Find Jobs</a>
+        <a href="{{ url_for('student_update_profile') }}" class="btn btn-outline-primary btn-lg">Setup Profile</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-md-6">
+    <div class="card bg-light">
+      <div class="card-body">
+        <h6 class="mb-2"><i class="bi bi-lightbulb me-2"></i>Pro Tips</h6>
+        <ul class="small mb-0">
+          <li>📄 Upload resume for 3x better shortlisting</li>
+          <li>⭐ Add relevant skills to match job requirements</li>
+          <li>⏰ Apply early - companies review first applications first</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card bg-light">
+      <div class="card-body">
+        <h6 class="mb-2"><i class="bi bi-clock me-2"></i>Status Meanings</h6>
+        <ul class="small mb-0">
+          <li><span class="badge bg-secondary">Applied</span> - Under review</li>
+          <li><span class="badge bg-warning">Shortlisted</span> - Next round</li>
+          <li><span class="badge bg-success">Selected</span> - Congratulations!</li>
+          <li><span class="badge bg-danger">Rejected</span> - Keep applying</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

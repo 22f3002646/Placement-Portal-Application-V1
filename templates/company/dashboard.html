@@ -10,7 +10,7 @@
         <h5>Profile</h5>
         <p class="mb-1"><strong>HR:</strong> {{ company.hr_contact or '-' }}</p>
         <p class="mb-1"><strong>Website:</strong> {{ company.website or '-' }}</p>
-        <p class="mb-0"><strong>Status:</strong>
+        <p class="mb-0"><strong>Company Status:</strong>
           <span class="badge bg-{{ 'success' if company.is_approved else 'warning' }}">
             {{ 'Approved' if company.is_approved else 'Pending' }}
           </span>
@@ -21,7 +21,7 @@
   <div class="col-md-4">
     <div class="card text-bg-info">
       <div class="card-body">
-        <h4>{{ stats.drives }}</h4>
+        <h4>{{ stats.total_drives }}</h4>
         <p class="mb-0">Drives Created</p>
       </div>
     </div>
@@ -48,9 +48,10 @@
         <thead>
         <tr>
           <th>Title</th>
-          <th>Status</th>
           <th>Deadline</th>
-          <th>#Applications</th>
+          <th>No of Applications</th>
+          <th>Drive Approval</th>
+          <th></th>
           <th></th>
         </tr>
         </thead>
@@ -58,17 +59,26 @@
         {% for d in drives %}
           <tr>
             <td>{{ d.title }}</td>
-            <td>
-              <span class="badge bg-{{ 'success' if d.status == 'approved' else 'secondary' if d.status == 'closed' else 'warning' }}">
-                {{ d.status|title }}
-              </span>
-            </td>
+
             <td>{{ d.deadline.strftime("%Y-%m-%d %H:%M") }}</td>
             <td>{{ d.applications|length }}</td>
+             <td>
+  <span class="badge bg-{{ 'success' if d.status == 'active' else 'secondary' if d.status == 'closed' else 'warning' }}">
+    {{ d.status|title }}
+  </span>
+</td>
             <td>
               <a class="btn btn-sm btn-outline-primary"
                  href="{{ url_for('company_applications') }}?drive={{ d.id }}">View Applications</a>
             </td>
+           
+<td>
+  {% if d.status != 'closed' %}
+    <a href="{{ url_for('company_toggle_drive_status', drive_id=d.id) }}" class="btn btn-sm btn-outline-secondary">
+      {{ 'Close' if d.status != 'closed' else 'Reopen' }} Drive
+    </a>
+  {% endif %}
+</td>
           </tr>
         {% endfor %}
         </tbody>

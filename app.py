@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime
+from werkzeug.utils import secure_filename 
 
 from flask import (
     Flask,
@@ -55,6 +56,18 @@ login_manager.login_view = "login"
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+@app.template_filter('is_deadline_passed')
+def is_deadline_passed(deadline):
+    if not deadline:
+        return True
+    return deadline < datetime.now()
+
+@app.template_filter('format_date')
+def format_date(dt, format_str='%d %b %Y'):
+    if dt:
+        return dt.strftime(format_str)
+    return 'N/A'
 
 
 # ----------------------------------------------------------------------
@@ -158,43 +171,69 @@ def register(role):
             flash("Username or email already exists.", "danger")
             return render_template("register.html", role=role)
 
-        if role == "student":
-            new_user = User(username=username, email=email, role=UserRole.STUDENT, is_active=True)
-        else:
-            new_user = User(username=username, email=email, role=UserRole.COMPANY, is_active=True)
-
+        user_role = UserRole.STUDENT if role == "student" else UserRole.COMPANY
+        new_user = User(
+            username=username, 
+            email=email, 
+            role=user_role, 
+            is_active=True
+        )
         new_user.set_password(password)
         db.session.add(new_user)
-        db.session.flush()  # to get new_user.id
+        db.session.flush() 
+        try:
+            if role == "student":
+                resume_filename = None
+                if 'resume' in request.files:
+                    resume_file = request.files['resume']
+                    if resume_file and resume_file.filename:
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        original_name = secure_filename(resume_file.filename)
+                        resume_filename = f"{new_user.username}_{timestamp}_{original_name}"
+                        
+                        upload_folder = os.path.join("static", "uploads", "resumes")
+                        os.makedirs(upload_folder, exist_ok=True)
+                        resume_path = os.path.join(upload_folder, resume_filename)
+                        
+                        resume_file.save(resume_path)
+                        print(f"Resume saved: {resume_path}")  
 
-        if role == "student":
-            student = Student(
-                user_id=new_user.id,
-                full_name=request.form["full_name"],
-                contact=request.form["contact"],
-                branch=request.form["branch"],
-                year=int(request.form["year"]),
-                cgpa=float(request.form["cgpa"] or 0),
-            )
-            db.session.add(student)
-            flash("Student registered. Please log in.", "success")
+                student = Student(
+                    user_id=new_user.id,
+                    full_name=request.form["full_name"],
+                    contact=request.form.get("contact"),
+                    branch=request.form.get("branch"),
+                    year=int(request.form.get("year") or 0),
+                    cgpa=float(request.form.get("cgpa") or 0),
+                    skills=request.form.get("skills"),
+                    education=request.form.get("education"),
+                    resume_path=resume_filename,  
+                )
+                db.session.add(student)
+                flash("Student registration successful with resume! Please log in.", "success")
 
-        else:
-            company = Company(
-    user_id=new_user.id,
-    name=request.form["company_name"],
-    industry=request.form["industry"],  # NEW
-    hr_contact=request.form["hr_contact"],
-    website=request.form["website"],
-    address=request.form["address"],
-    is_approved=False,
-    is_blacklisted=False,
-)
-            db.session.add(company)
-            flash("Company registered. Await admin approval.", "success")
+            else: 
+                company = Company(
+                    user_id=new_user.id,
+                    name=request.form["company_name"],
+                    industry=request.form.get("industry"),
+                    hr_contact=request.form.get("hr_contact"),
+                    website=request.form.get("website"),
+                    address=request.form.get("address"),
+                    is_approved=False,
+                    is_blacklisted=False,
+                )
+                db.session.add(company)
+                flash("Company registered! Awaiting admin approval.", "success")
 
-        db.session.commit()
-        return redirect(url_for("login"))
+            db.session.commit()
+            return redirect(url_for("login"))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Registration failed: {str(e)}", "danger")
+            print(f"Registration ERROR: {e}")  
+            return render_template("register.html", role=role)
 
     return render_template("register.html", role=role)
 
@@ -383,52 +422,82 @@ def admin_close_drive(drive_id):
 # Company views
 # ----------------------------------------------------------------------
 
+
+
+@app.route("/company/drive/<int:drive_id>/toggle_status")
+@login_required
+def company_toggle_drive_status(drive_id):
+    role_required(UserRole.COMPANY)
+    drive = PlacementDrive.query.get_or_404(drive_id)
+    
+    if drive.company_id != current_user.company.id:
+        abort(403)
+    
+    if drive.status == "active":
+        drive.status = "closed"
+        flash("Drive closed.", "info")
+    elif drive.status == "closed":
+        drive.status = "active"
+        flash("Drive reopened.", "success")
+    else:
+        flash("Cannot update pending drive status.", "warning")
+    
+    db.session.commit()
+    return redirect(url_for("company_dashboard"))
+
+
 @app.route("/company/dashboard")
 @login_required
 def company_dashboard():
     role_required(UserRole.COMPANY)
-    company = current_user.company
+    company = current_user.company[0]
     if not company or not company.is_approved:
-        flash("Company is not approved yet.", "warning")
+        flash("Company not approved or blacklisted.", "danger")
         return redirect(url_for("index"))
-
-    drives = PlacementDrive.query.filter_by(company_id=company.id).all()
-    applications_count = (
-        Application.query.join(PlacementDrive)
-        .filter(PlacementDrive.company_id == company.id)
-        .count()
+    
+    drives = PlacementDrive.query.filter_by(company_id=company.id).order_by(
+        PlacementDrive.created_at.desc()
+    ).all()
+    
+    stats = {
+        "total_drives": len(drives),
+        "active_drives": len([d for d in drives if d.status == "active"]),
+        "applications": Application.query.join(PlacementDrive).filter(
+            PlacementDrive.company_id == company.id
+        ).count(),
+    }
+    
+    return render_template(
+        "company/dashboard.html", 
+        company=company, 
+        drives=drives, 
+        stats=stats
     )
-
-    stats = {"drives": len(drives), "applications": applications_count}
-    return render_template("company/dashboard.html", company=company, drives=drives, stats=stats)
 
 
 @app.route("/company/create_drive", methods=["GET", "POST"])
 @login_required
 def company_create_drive():
     role_required(UserRole.COMPANY)
-    company = current_user.company
+    company = current_user.company[0]
     if not company or not company.is_approved:
         abort(403)
 
     if request.method == "POST":
-        title = request.form["title"]
-        description = request.form["description"]
-        eligibility = request.form["eligibility"]
-        deadline_str = request.form["deadline"]  # type="datetime-local"
-        deadline = datetime.strptime(deadline_str, "%Y-%m-%dT%H:%M")
-
         drive = PlacementDrive(
             company_id=company.id,
-            title=title,
-            description=description,
-            eligibility=eligibility,
-            deadline=deadline,
-            status="pending",
+            title=request.form["title"],
+            description=request.form["description"],
+            skills_required=request.form.get("skills_required"),
+            experience=request.form.get("experience"),
+            salary_range=request.form.get("salary_range"),
+            eligibility=request.form.get("eligibility"),
+            deadline=datetime.strptime(request.form["deadline"], "%Y-%m-%dT%H:%M"),
+            status="pending", 
         )
         db.session.add(drive)
         db.session.commit()
-        flash("Placement drive created. Awaiting admin approval.", "success")
+        flash("Job posted successfully. Awaiting admin approval.", "success")
         return redirect(url_for("company_dashboard"))
 
     return render_template("company/create_drive.html")
@@ -438,57 +507,146 @@ def company_create_drive():
 @login_required
 def company_applications():
     role_required(UserRole.COMPANY)
-    company = current_user.company
+    company = current_user.company[0]
     if not company or not company.is_approved:
         abort(403)
 
     drive_id = request.args.get("drive", type=int)
-    query = (
-        Application.query.join(PlacementDrive)
-        .filter(PlacementDrive.company_id == company.id)
+    apps_query = Application.query.join(Student).join(PlacementDrive).filter(
+        PlacementDrive.company_id == company.id
     )
+    
     if drive_id:
-        query = query.filter(Application.drive_id == drive_id)
-
-    applications = query.order_by(Application.applied_at.desc()).all()
+        apps_query = apps_query.filter(Application.drive_id == drive_id)
+    
+    applications = apps_query.order_by(Application.applied_at.desc()).all()
     return render_template("company/applications.html", applications=applications)
 
+@app.route("/company/student/<int:student_id>")
+@login_required
+def company_student_profile(student_id):
+    role_required(UserRole.COMPANY)
+    student = Student.query.get_or_404(student_id)
+    company = current_user.company[0]
+    apps = Application.query.join(PlacementDrive).filter(
+        Application.student_id == student.id,
+        PlacementDrive.company_id == company.id
+    ).all()
+    
+    return render_template("company/student_profile.html", student=student, applications=apps)
 
-@app.route("/company/application/<int:app_id>/status/<status>")
+
+@app.route("/company/application/<int:app_id>/update/<status>")
 @login_required
 def company_update_application(app_id, status):
     role_required(UserRole.COMPANY)
+    company = current_user.company[0]
+
     if status not in ("applied", "shortlisted", "selected", "rejected"):
         abort(400)
 
     app_obj = Application.query.get_or_404(app_id)
-    if app_obj.drive.company_id != current_user.company.id:
+    if app_obj.drive.company_id != company.id:
         abort(403)
-
+    
+    old_status = app_obj.status
     app_obj.status = status
     db.session.commit()
-    flash("Application status updated.", "success")
+    
+    # Simple notification (extendable to email/push later)
+    # notification_msg = f"Your application for '{app_obj.drive.title}' has been {status}."
+    # flash(notification_msg, "notification")  # Special category for student
+    
+    # flash(f"Status updated: {old_status|title} → {status|title}", "success")
     return redirect(url_for("company_applications"))
+
 
 
 # ----------------------------------------------------------------------
 # Student views
 # ----------------------------------------------------------------------
 
+@app.route("/student/profile")
+@login_required
+def student_profile():
+    role_required(UserRole.STUDENT)
+    student = current_user.student
+    if not student:
+        flash("No student profile found. Please contact admin.", "danger")
+        return redirect(url_for("logout"))
+    return render_template("student/profile.html", student=student)
+
+@app.route("/student/edit-profile", methods=["GET", "POST"])
+@login_required
+def student_update_profile():
+    role_required(UserRole.STUDENT)
+    student = current_user.student[0]
+    
+    if not student:
+        flash("Profile not found.", "danger")
+        return redirect(url_for("logout"))
+    
+    if request.method == "POST":
+        student.full_name = request.form.get("full_name", student.full_name)
+        student.contact = request.form.get("contact", student.contact)
+        student.branch = request.form.get("branch", student.branch)
+        student.year = int(request.form.get("year") or student.year)
+        student.cgpa = float(request.form.get("cgpa") or student.cgpa)
+        student.skills = request.form.get("skills", student.skills)
+        student.education = request.form.get("education", student.education)
+        
+        if 'resume' in request.files and request.files['resume'].filename:
+            resume_file = request.files['resume']
+            resume_filename = secure_filename(f"{current_user.username}_{resume_file.filename}")
+            resume_path = os.path.join("static", "uploads", "resumes", resume_filename)
+            os.makedirs(os.path.dirname(resume_path), exist_ok=True)
+            resume_file.save(resume_path)
+            student.resume_path = resume_filename
+        
+        db.session.commit()
+        flash("Profile updated successfully!", "success")
+        return redirect(url_for("student_dashboard"))
+    
+    return render_template("student/profile_edit.html", student=student)
+
+@app.context_processor
+def inject_profile_status():
+    def get_profile_status(user):
+        if user.role != UserRole.STUDENT:
+            return "complete"
+        student = user.student[0]
+        if not student:
+            return "incomplete"
+        score = 0
+        if student.full_name: score += 1
+        if student.branch: score += 1
+        if student.skills: score += 1
+        if student.resume_path: score += 2
+        if score >= 4: return "complete"
+        elif score >= 2: return "partial"
+        return "incomplete"
+    return dict(get_profile_status=get_profile_status)
+
+
 @app.route("/student/dashboard")
 @login_required
 def student_dashboard():
     role_required(UserRole.STUDENT)
     student = current_user.student
-
+    if not student:
+        return redirect(url_for("student_profile")) 
+    
     approved_drives = PlacementDrive.query.filter_by(status="approved").all()
-    my_apps = Application.query.filter_by(student_id=student.id).order_by(
-        Application.applied_at.desc()
-    ).all()
-
+    
+    my_apps = []
+    if student:
+        my_apps = Application.query.filter_by(student_id=student[0].id).order_by(
+            Application.applied_at.desc()
+        ).all()
+    
     return render_template(
         "student/dashboard.html",
-        student=student,
+        student=student[0],
         approved_drives=approved_drives,
         applications=my_apps,
     )
@@ -498,17 +656,48 @@ def student_dashboard():
 @login_required
 def student_drives():
     role_required(UserRole.STUDENT)
-    drives = PlacementDrive.query.filter_by(status="approved").order_by(
-        PlacementDrive.deadline
-    ).all()
-    return render_template("student/drives.html", drives=drives)
+    
+    # Search parameters
+    query = request.args.get('q', '').strip().lower()
+    company_filter = request.args.get('company', '').strip().lower()
+    skills_filter = request.args.get('skills', '').strip().lower()
+    
+    drives = PlacementDrive.query.filter_by(status="approved")
+    
+    # Multi-field search
+    if query:
+        drives = drives.filter(
+            db.or_(
+                PlacementDrive.title.ilike(f'%{query}%'),
+                PlacementDrive.company.name.ilike(f'%{query}%'),
+                PlacementDrive.skills_required.ilike(f'%{query}%'),
+                PlacementDrive.description.ilike(f'%{query}%')
+            )
+        )
+    
+    if company_filter:
+        drives = drives.join(Company).filter(Company.name.ilike(f'%{company_filter}%'))
+    
+    if skills_filter:
+        drives = drives.filter(PlacementDrive.skills_required.ilike(f'%{skills_filter}%'))
+    
+    drives = drives.order_by(PlacementDrive.deadline.asc()).all()
+    
+    return render_template(
+        "student/drives.html", 
+        drives=drives,
+        search_query=query,
+        company_filter=company_filter,
+        skills_filter=skills_filter
+    )
+
 
 
 @app.route("/student/apply/<int:drive_id>", methods=["POST"])
 @login_required
 def student_apply(drive_id):
     role_required(UserRole.STUDENT)
-    student = current_user.student
+    student = current_user.student[0]
 
     drive = PlacementDrive.query.get_or_404(drive_id)
     if drive.status != "approved":
@@ -531,18 +720,33 @@ def student_apply(drive_id):
 @login_required
 def student_applications():
     role_required(UserRole.STUDENT)
-    student = current_user.student
-    apps = Application.query.filter_by(student_id=student.id).order_by(
-        Application.applied_at.desc()
-    ).all()
-    return render_template("student/applications.html", applications=apps)
-
+    student = current_user.student[0]
+    if not student:
+        flash("Complete your profile first.", "warning")
+        return redirect(url_for("student_update_profile"))
+    
+    status_filter = request.args.get('status', 'all').lower()
+    
+    apps_query = Application.query.join(PlacementDrive).join(Company).filter(
+        Application.student_id == student.id
+    ).order_by(Application.applied_at.desc())
+    
+    if status_filter != 'all':
+        apps_query = apps_query.filter(Application.status == status_filter)
+    
+    applications = apps_query.all()
+    
+    return render_template(
+        "student/applications.html", 
+        applications=applications,
+        status_filter=status_filter,
+        student=student
+    )
 
 # ----------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("Placement Portal running at http://localhost:5000")
-    print("Admin login: admin / admin123")
+    # print("Admin login: admin / admin123")
     app.run(debug=True)

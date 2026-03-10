@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Create Drive{% endblock %}
+{% block content %}
+<h3>Create Placement Drive</h3>
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Job Title <span class="text-danger">*</span></label>
+          <input name="title" class="form-control" required>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Experience Required</label>
+          <input name="experience" class="form-control" placeholder="e.g., 0-2 years">
+        </div>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Job Description <span class="text-danger">*</span></label>
+        <textarea name="description" class="form-control" rows="4" required></textarea>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Required Skills</label>
+          <textarea name="skills_required" class="form-control" rows="2" placeholder="JavaScript, React, SQL"></textarea>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Salary Range</label>
+          <input name="salary_range" class="form-control" placeholder="e.g., 5-10 LPA">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Eligibility</label>
+          <textarea name="eligibility" class="form-control" rows="2"></textarea>
+        </div>
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Application Deadline <span class="text-danger">*</span></label>
+        <input type="datetime-local" name="deadline" class="form-control" required>
+      </div>
+      
+      <button class="btn btn-success" type="submit">Post Job</button>
+      <a href="{{ url_for('company_dashboard') }}" class="btn btn-secondary ms-2">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
