@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Admin - Drives{% endblock %}
+{% block content %}
+<h3 class="mb-3">Placement Drives</h3>
+<div class="card">
+  <div class="card-body table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+      <tr>
+        <th>Company</th>
+        <th>Title</th>
+        <th>Status</th>
+        <th>Deadline</th>
+        <th>Actions</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for d in drives %}
+        <tr>
+          <td>{{ d.company.name }}</td>
+          <td>{{ d.title }}</td>
+          <td>
+            <span class="badge bg-{{ 'success' if d.status == 'approved' else 'secondary' if d.status == 'closed' else 'warning' }}">
+              {{ d.status|title }}
+            </span>
+          </td>
+          <td>{{ d.deadline.strftime("%Y-%m-%d %H:%M") }}</td>
+          <td>
+            {% if d.status == 'pending' %}
+              <a href="{{ url_for('admin_approve_drive', drive_id=d.id) }}" class="btn btn-sm btn-success">Approve</a>
+            {% endif %}
+            {% if d.status != 'closed' %}
+              <a href="{{ url_for('admin_close_drive', drive_id=d.id) }}" class="btn btn-sm btn-outline-danger">Close</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

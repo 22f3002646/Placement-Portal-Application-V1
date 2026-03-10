@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<h3 class="mb-4">Admin Dashboard</h3>
+<div class="row mb-4">
+  <div class="col-md-3">
+    <div class="card text-bg-primary mb-3">
+      <div class="card-body">
+        <h4>{{ stats.students }}</h4>
+        <p class="mb-0">Students</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-success mb-3">
+      <div class="card-body">
+        <h4>{{ stats.companies }}</h4>
+        <p class="mb-0">Companies</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-info mb-3">
+      <div class="card-body">
+        <h4>{{ stats.drives }}</h4>
+        <p class="mb-0">Placement Drives</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-warning mb-3">
+      <div class="card-body">
+        <h4>{{ stats.applications }}</h4>
+        <p class="mb-0">Applications</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-4 mb-2">
+    <a href="{{ url_for('admin_companies') }}" class="btn btn-outline-primary w-100">Manage Companies</a>
+  </div>
+  <div class="col-md-4 mb-2">
+    <a href="{{ url_for('admin_students') }}" class="btn btn-outline-success w-100">Manage Students</a>
+  </div>
+  <div class="col-md-4 mb-2">
+    <a href="{{ url_for('admin_drives') }}" class="btn btn-outline-info w-100">Manage Drives</a>
+  </div>
+</div>
+{% endblock %}

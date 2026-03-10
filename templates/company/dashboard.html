@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Company Dashboard{% endblock %}
+{% block content %}
+<h3 class="mb-3">Company Dashboard - {{ company.name }}</h3>
+
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <h5>Profile</h5>
+        <p class="mb-1"><strong>HR:</strong> {{ company.hr_contact or '-' }}</p>
+        <p class="mb-1"><strong>Website:</strong> {{ company.website or '-' }}</p>
+        <p class="mb-0"><strong>Status:</strong>
+          <span class="badge bg-{{ 'success' if company.is_approved else 'warning' }}">
+            {{ 'Approved' if company.is_approved else 'Pending' }}
+          </span>
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-bg-info">
+      <div class="card-body">
+        <h4>{{ stats.drives }}</h4>
+        <p class="mb-0">Drives Created</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-bg-secondary">
+      <div class="card-body">
+        <h4>{{ stats.applications }}</h4>
+        <p class="mb-0">Total Applications</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h5 class="mb-0">My Drives</h5>
+  <a href="{{ url_for('company_create_drive') }}" class="btn btn-primary btn-sm">+ Create Drive</a>
+</div>
+
+<div class="card">
+  <div class="card-body table-responsive">
+    {% if drives %}
+      <table class="table table-hover">
+        <thead>
+        <tr>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Deadline</th>
+          <th>#Applications</th>
+          <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for d in drives %}
+          <tr>
+            <td>{{ d.title }}</td>
+            <td>
+              <span class="badge bg-{{ 'success' if d.status == 'approved' else 'secondary' if d.status == 'closed' else 'warning' }}">
+                {{ d.status|title }}
+              </span>
+            </td>
+            <td>{{ d.deadline.strftime("%Y-%m-%d %H:%M") }}</td>
+            <td>{{ d.applications|length }}</td>
+            <td>
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('company_applications') }}?drive={{ d.id }}">View Applications</a>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="mb-0 text-muted">No drives created yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

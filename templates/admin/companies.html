@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Admin - Companies{% endblock %}
+{% block content %}
+<h3 class="mb-3">Companies</h3>
+<div class="card">
+  <div class="card-body table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+      <tr>
+        <th>Name</th>
+        <th>HR Contact</th>
+        <th>Website</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for c in companies %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td>{{ c.hr_contact or '-' }}</td>
+          <td>
+            {% if c.website %}
+              <a href="{{ c.website }}" target="_blank">{{ c.website }}</a>
+            {% else %}-{% endif %}
+          </td>
+          <td>
+            <span class="badge bg-{{ 'success' if c.is_approved else 'warning' }}">
+              {{ 'Approved' if c.is_approved else 'Pending' }}
+            </span>
+          </td>
+          <td>
+            {% if not c.is_approved %}
+              <a class="btn btn-sm btn-success" href="{{ url_for('admin_approve_company', company_id=c.id) }}">Approve</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('admin_reject_company', company_id=c.id) }}">Reject</a>
+            {% else %}
+              <span class="text-success small">Approved</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

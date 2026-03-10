@@ -106,3 +106,7 @@ def get_user_applications(user):
 User.company = property(get_company)
 User.student = property(get_student)
 User.applications = property(get_user_applications)
+
+Student.user = db.relationship("User", backref="student", uselist=False)
+Company.user = db.relationship("User", backref="company", uselist=False)
+
