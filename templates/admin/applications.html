@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Admin - Applications{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3>All Applications ({{ applications|length }})</h3>
+  <form method="get" class="d-flex">
+    <input name="q" value="{{ search_query }}" placeholder="Search student or company..." class="form-control me-2">
+    <button class="btn btn-primary">Search</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-body table-responsive">
+    <table class="table table-hover">
+      <thead>
+      <tr>
+        <th>Student</th>
+        <th>Company</th>
+        <th>Drive</th>
+        <th>Date</th>
+        <th>Status</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for a in applications %}
+      <tr>
+        <td>{{ a.student.full_name }} ({{ a.student.branch }})</td>
+        <td>{{ a.drive.company.name }}</td>
+        <td>{{ a.drive.title }}</td>
+        <td>{{ a.applied_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+          <span class="badge bg-{{ 'secondary' if a.status == 'applied' else 'warning' if a.status == 'shortlisted' else 'success' if a.status == 'selected' else 'danger' }}">
+            {{ a.status|title }}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

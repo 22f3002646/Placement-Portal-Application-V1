@@ -39,7 +39,6 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 db_path = os.path.join(INSTANCE_DIR, "placement_portal.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path}"
 
-# Optional: quick SQLite sanity check
 try:
     conn = sqlite3.connect(db_path)
     conn.execute("SELECT 1")
@@ -182,13 +181,15 @@ def register(role):
 
         else:
             company = Company(
-                user_id=new_user.id,
-                name=request.form["company_name"],
-                hr_contact=request.form["hr_contact"],
-                website=request.form["website"],
-                address=request.form["address"],
-                is_approved=False,
-            )
+    user_id=new_user.id,
+    name=request.form["company_name"],
+    industry=request.form["industry"],  # NEW
+    hr_contact=request.form["hr_contact"],
+    website=request.form["website"],
+    address=request.form["address"],
+    is_approved=False,
+    is_blacklisted=False,
+)
             db.session.add(company)
             flash("Company registered. Await admin approval.", "success")
 
@@ -220,8 +221,88 @@ def admin_dashboard():
 @login_required
 def admin_companies():
     role_required(UserRole.ADMIN)
-    companies = Company.query.order_by(Company.created_at.desc()).all()
-    return render_template("admin/companies.html", companies=companies)
+    
+    query = request.args.get('q', '').strip().lower()
+    companies = Company.query
+    
+    if query:
+        companies = companies.filter(
+            db.or_(
+                Company.name.ilike(f'%{query}%'),
+                Company.industry.ilike(f'%{query}%'),
+                Company.hr_contact.ilike(f'%{query}%')
+            )
+        )
+    
+    companies = companies.order_by(Company.created_at.desc()).all()
+    return render_template("admin/companies.html", companies=companies, search_query=query)
+
+
+@app.route("/admin/students/<int:student_id>/blacklist")
+@login_required
+def admin_blacklist_student(student_id):
+    role_required(UserRole.ADMIN)
+    student = Student.query.get_or_404(student_id)
+    student.is_blacklisted = True
+    student.user.is_active = False 
+    db.session.commit()
+    flash(f"Student '{student.full_name}' blacklisted.", "success")
+    return redirect(url_for("admin_students"))
+
+ 
+@app.route("/admin/students/<int:student_id>/activate")
+@login_required
+def admin_activate_student(student_id):
+    role_required(UserRole.ADMIN)
+    student = Student.query.get_or_404(student_id)
+    student.is_blacklisted = False
+    student.user.is_active = True
+    db.session.commit()
+    flash(f"Student '{student.full_name}' activated.", "success")
+    return redirect(url_for("admin_students"))
+
+
+@app.route("/admin/companies/<int:company_id>/blacklist")
+@login_required
+def admin_blacklist_company(company_id):
+    role_required(UserRole.ADMIN)
+    company = Company.query.get_or_404(company_id)
+    company.is_blacklisted = True
+    company.user.is_active = False
+    db.session.commit()
+    flash(f"Company '{company.name}' blacklisted.", "success")
+    return redirect(url_for("admin_companies"))
+
+
+@app.route("/admin/companies/<int:company_id>/activate")
+@login_required
+def admin_activate_company(company_id):
+    role_required(UserRole.ADMIN)
+    company = Company.query.get_or_404(company_id)
+    company.is_blacklisted = False
+    company.user.is_active = True
+    db.session.commit()
+    flash(f"Company '{company.name}' activated.", "success")
+    return redirect(url_for("admin_companies"))
+
+@app.route("/admin/applications")
+@login_required
+def admin_applications():
+    role_required(UserRole.ADMIN)
+    
+    query = request.args.get('q', '').strip().lower()
+    applications = Application.query.join(Student).join(PlacementDrive).join(Company)
+    
+    if query:
+        applications = applications.filter(
+            db.or_(
+                Student.full_name.ilike(f'%{query}%'),
+                Company.name.ilike(f'%{query}%')
+            )
+        )
+    
+    applications = applications.order_by(Application.applied_at.desc()).all()
+    return render_template("admin/applications.html", applications=applications, search_query=query)
 
 
 @app.route("/admin/companies/<int:company_id>/approve")
@@ -250,8 +331,22 @@ def admin_reject_company(company_id):
 @login_required
 def admin_students():
     role_required(UserRole.ADMIN)
-    students = Student.query.order_by(Student.created_at.desc()).all()
-    return render_template("admin/students.html", students=students)
+    
+    query = request.args.get('q', '').strip().lower()
+    students = Student.query
+    
+    if query:
+        students = students.join(User).filter(
+            db.or_(
+                Student.full_name.ilike(f'%{query}%'),
+                Student.contact.ilike(f'%{query}%'),
+                User.username.ilike(f'%{query}%'),
+                User.email.ilike(f'%{query}%')
+            )
+        )
+    
+    students = students.order_by(Student.created_at.desc()).all()
+    return render_template("admin/students.html", students=students, search_query=query)
 
 
 @app.route("/admin/drives")

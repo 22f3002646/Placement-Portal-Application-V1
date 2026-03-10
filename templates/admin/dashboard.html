@@ -38,14 +38,17 @@
 </div>
 
 <div class="row">
-  <div class="col-md-4 mb-2">
+  <div class="col-md-3 mb-2">
     <a href="{{ url_for('admin_companies') }}" class="btn btn-outline-primary w-100">Manage Companies</a>
   </div>
-  <div class="col-md-4 mb-2">
+  <div class="col-md-3 mb-2">
     <a href="{{ url_for('admin_students') }}" class="btn btn-outline-success w-100">Manage Students</a>
   </div>
-  <div class="col-md-4 mb-2">
+  <div class="col-md-3 mb-2">
     <a href="{{ url_for('admin_drives') }}" class="btn btn-outline-info w-100">Manage Drives</a>
   </div>
+  <div class="col-md-3 mb-2">
+  <a href="{{ url_for('admin_applications') }}" class="btn btn-outline-warning w-100">View Applications</a>
+</div>
 </div>
 {% endblock %}

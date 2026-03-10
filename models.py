@@ -37,6 +37,8 @@ class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False, unique=True)
     name = db.Column(db.String(100), nullable=False)
+    industry = db.Column(db.String(100))  
+    is_blacklisted = db.Column(db.Boolean, default=False)
     hr_contact = db.Column(db.String(100))
     website = db.Column(db.String(200))
     address = db.Column(db.Text)
