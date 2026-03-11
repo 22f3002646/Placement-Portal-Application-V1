@@ -112,7 +112,7 @@
             <div class="fw-medium">{{ app.applied_at.strftime('%d %b %Y') }}</div>
             <small class="text-muted">{{ app.applied_at.strftime('%H:%M') }}</small>
           </td>
-          
+<!--           
           <td>
             <div class="d-flex align-items-center">
               <span class="badge fs-6 px-3 py-2 rounded-pill me-2 bg-{{ 
@@ -131,7 +131,35 @@
                 <i class="bi bi-check-circle-fill text-success"></i>
               {% endif %}
             </div>
-          </td>
+          </td> -->
+          <td>
+  {% if app.drive and app.drive.company and app.drive.company.is_blacklisted %}
+    <div class="mb-1">
+      <span class="badge bg-danger fs-6 px-3 py-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Company Blacklisted
+      </span>
+    </div>
+  {% endif %}
+  
+  {% if app.drive and app.drive.status == "closed" %}
+    <div class="mb-1">
+      <span class="badge bg-secondary fs-6 px-3 py-2">
+        <i class="bi bi-x-circle me-1"></i>
+        Drive Closed
+      </span>
+    </div>
+  {% endif %}
+  
+  <span class="badge fs-6 px-3 py-2 rounded-pill bg-{{ 
+    'secondary' if app.status == 'applied' 
+    else 'warning' if app.status == 'shortlisted' 
+    else 'success' if app.status == 'selected' 
+    else 'danger' 
+  }}">
+    {{ app.status|title }}
+  </span>
+</td>
           
           <td>
             {% if app.drive.deadline | is_deadline_passed %}

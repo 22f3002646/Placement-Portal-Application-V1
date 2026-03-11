@@ -255,6 +255,24 @@ def admin_dashboard():
     }
     return render_template("admin/dashboard.html", stats=stats)
 
+@app.route("/admin/applications")
+@login_required
+def admin_applications():
+    role_required(UserRole.ADMIN)
+    
+    query = request.args.get('q', '').strip().lower()
+    applications = Application.query.join(Student).join(PlacementDrive).join(Company)
+    
+    if query:
+        applications = applications.filter(
+            db.or_(
+                Student.full_name.ilike(f'%{query}%'),
+                Company.name.ilike(f'%{query}%')
+            )
+        )
+    
+    applications = applications.order_by(Application.applied_at.desc()).all()
+    return render_template("admin/applications.html", applications=applications, search_query=query)
 
 @app.route("/admin/companies")
 @login_required
@@ -301,15 +319,41 @@ def admin_activate_student(student_id):
     return redirect(url_for("admin_students"))
 
 
+
 @app.route("/admin/companies/<int:company_id>/blacklist")
 @login_required
 def admin_blacklist_company(company_id):
     role_required(UserRole.ADMIN)
     company = Company.query.get_or_404(company_id)
+    
+    drive_count = PlacementDrive.query.filter_by(company_id=company.id).count()
+    app_count = db.session.query(Application).join(PlacementDrive).filter(
+        PlacementDrive.company_id == company.id
+    ).count()
+    
+    drives = PlacementDrive.query.filter_by(company_id=company.id).all()
+    for drive in drives:
+        drive.status = "closed"
+    
+    affected_apps = db.session.query(Application).join(PlacementDrive).filter(
+        PlacementDrive.company_id == company.id
+    ).all()
+    for app in affected_apps:
+        if app.status in ['applied', 'shortlisted']:
+            app.status = "rejected"
+    
     company.is_blacklisted = True
     company.user.is_active = False
+    
     db.session.commit()
-    flash(f"Company '{company.name}' blacklisted.", "success")
+    
+    flash(
+        f"🚫 Company '{company.name}' BLACKLISTED! "
+        f"📊 {drive_count} drives closed | {len(affected_apps)} applications rejected"
+        f"👥 Students auto-notified. Company hidden from searches.",
+        "success"
+    )
+    
     return redirect(url_for("admin_companies"))
 
 
@@ -318,30 +362,26 @@ def admin_blacklist_company(company_id):
 def admin_activate_company(company_id):
     role_required(UserRole.ADMIN)
     company = Company.query.get_or_404(company_id)
+    
     company.is_blacklisted = False
     company.user.is_active = True
+    
+    pending_drives = PlacementDrive.query.filter_by(
+        company_id=company.id, status="closed"
+    ).all()
+    for drive in pending_drives:
+        if drive.deadline > datetime.now(): 
+            drive.status = "approved"
+    
     db.session.commit()
-    flash(f"Company '{company.name}' activated.", "success")
+    
+    flash(
+        f"✅ Company '{company.name}' ACTIVATED! "
+        f"📊 {len(pending_drives)} drives reopened | Ready for applications.",
+        "success"
+    )
     return redirect(url_for("admin_companies"))
 
-@app.route("/admin/applications")
-@login_required
-def admin_applications():
-    role_required(UserRole.ADMIN)
-    
-    query = request.args.get('q', '').strip().lower()
-    applications = Application.query.join(Student).join(PlacementDrive).join(Company)
-    
-    if query:
-        applications = applications.filter(
-            db.or_(
-                Student.full_name.ilike(f'%{query}%'),
-                Company.name.ilike(f'%{query}%')
-            )
-        )
-    
-    applications = applications.order_by(Application.applied_at.desc()).all()
-    return render_template("admin/applications.html", applications=applications, search_query=query)
 
 
 @app.route("/admin/companies/<int:company_id>/approve")
@@ -435,7 +475,11 @@ def company_toggle_drive_status(drive_id):
     
     if drive.status == "active":
         drive.status = "closed"
-        flash("Drive closed.", "info")
+        apps = drive.applications
+        for app in apps:
+            if app.status == "applied":
+                app.status = "rejected"
+        flash(f"Drive closed. {len(apps)} applications auto-updated.", "info")
     elif drive.status == "closed":
         drive.status = "active"
         flash("Drive reopened.", "success")
@@ -636,13 +680,28 @@ def student_dashboard():
     if not student:
         return redirect(url_for("student_profile")) 
     
-    approved_drives = PlacementDrive.query.filter_by(status="approved").all()
+
     
     my_apps = []
     if student:
         my_apps = Application.query.filter_by(student_id=student[0].id).order_by(
             Application.applied_at.desc()
         ).all()
+
+    recent_changes = []
+    for app in my_apps:
+        if (app.drive.company.is_blacklisted or app.drive.status == "closed") and app.status == "rejected":
+            recent_changes.append(app)
+
+
+
+    if recent_changes:
+        flash(f"{len(recent_changes)} applications affected by company/drive closure.", "warning")
+    approved_drives = PlacementDrive.query.filter_by(status="approved").all()
+    
+    for app in my_apps:
+        if app.drive.company.is_blacklisted or app.drive.status == "closed":
+            app.is_inactive = True
     
     return render_template(
         "student/dashboard.html",
@@ -652,36 +711,40 @@ def student_dashboard():
     )
 
 
+
 @app.route("/student/drives")
 @login_required
 def student_drives():
     role_required(UserRole.STUDENT)
     
-    # Search parameters
     query = request.args.get('q', '').strip().lower()
     company_filter = request.args.get('company', '').strip().lower()
     skills_filter = request.args.get('skills', '').strip().lower()
     
-    drives = PlacementDrive.query.filter_by(status="approved")
+    drives_query = PlacementDrive.query.join(Company).filter(
+        PlacementDrive.status == "approved",
+        Company.is_blacklisted == False,  
+        Company.user.is_active == True    
+    )
     
-    # Multi-field search
+
     if query:
-        drives = drives.filter(
+        drives_query = drives_query.filter(
             db.or_(
                 PlacementDrive.title.ilike(f'%{query}%'),
-                PlacementDrive.company.name.ilike(f'%{query}%'),
+                Company.name.ilike(f'%{query}%'),
                 PlacementDrive.skills_required.ilike(f'%{query}%'),
                 PlacementDrive.description.ilike(f'%{query}%')
             )
         )
     
     if company_filter:
-        drives = drives.join(Company).filter(Company.name.ilike(f'%{company_filter}%'))
+        drives_query = drives_query.filter(Company.name.ilike(f'%{company_filter}%'))
     
     if skills_filter:
-        drives = drives.filter(PlacementDrive.skills_required.ilike(f'%{skills_filter}%'))
+        drives_query = drives_query.filter(PlacementDrive.skills_required.ilike(f'%{skills_filter}%'))
     
-    drives = drives.order_by(PlacementDrive.deadline.asc()).all()
+    drives = drives_query.order_by(PlacementDrive.deadline.asc()).all()
     
     return render_template(
         "student/drives.html", 
@@ -690,6 +753,7 @@ def student_drives():
         company_filter=company_filter,
         skills_filter=skills_filter
     )
+
 
 
 

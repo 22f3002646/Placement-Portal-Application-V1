@@ -17,9 +17,9 @@
         <th>Name</th>
         <th>HR Contact</th>
         <th>Website</th>
-        <th>Status</th>
+        <th>Company Status</th>
         <th>Actions</th>
-        <th>Active</th>
+        <!-- <th>Active</th> -->
         <!-- <th>Blacklist/Activate</th> -->
       </tr>
       </thead>
@@ -34,8 +34,14 @@
             {% else %}-{% endif %}
           </td>
           <td>
-            <span class="badge bg-{{ 'success' if c.is_approved else 'warning' }}">
-              {{ 'Approved' if c.is_approved else 'Pending' }}
+            
+              {% if c.is_blacklisted %}
+              <span class="badge bg-danger">
+              Blacklisted
+              {% else %}
+              <span class="badge bg-{{ 'success' if c.is_approved else 'warning' }}">
+              {{ 'Approved' if c.is_approved  else 'Pending' }}
+              {% endif %}
             </span>
           </td>
           <td>
@@ -56,13 +62,13 @@
   {% endif %}
             {% endif %}
           </td>
-          <td>
+          <!-- <td>
   {% if c.is_blacklisted %}
     <span class="badge bg-danger">Blacklisted</span>
   {% else %}
     <span class="badge bg-success">Active</span>
   {% endif %}
-</td>
+</td> -->
 
         </tr>
       {% endfor %}
